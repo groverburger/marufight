@@ -1,1 +1,0 @@
-"C:\Users\zacha_000\Documents\love-0.10.1-win64\love.exe" "%cd%" --console
