@@ -96,10 +96,10 @@ function NewFood(xg,yg)
 			if self.growthTimer > 60*5 + self.trample then
 				self.growthTimer = 0
 				self.dead = false
-				self.trample = self.trample + 60*1.5
+				--self.trample = self.trample + 60*1.5
 			end
-		else
-			self.trample = math.max(self.trample-(1/(5)), 0)
+		--else
+			--self.trample = math.max(self.trample-(1/(5)), 0)
 		end
 		return true
 	end
@@ -115,10 +115,10 @@ function NewFood(xg,yg)
 
 		local dx,dy = self.x-Camera.x,self.y-Camera.y
 
-		if math.dist(love.mouse.getX(),love.mouse.getY(),dx,dy) < 8 then
-			SetColor(255,0,0)
-			love.graphics.print(math.floor((self.trample/60)*10 +0.5)/10,dx,dy-16)
-		end
+		--if math.dist(love.mouse.getX(),love.mouse.getY(),dx,dy) < 8 then
+			--SetColor(255,0,0)
+			--love.graphics.print(math.floor((self.trample/60)*10 +0.5)/10,dx,dy-16)
+		--end
 	end
 
 	return c
@@ -246,8 +246,10 @@ end
 
 function love.draw()
 	if Visual then
-		love.graphics.draw(GridCanvas, -Camera.x,-Camera.y)
+        --SetColor(0,0.6,0.6)
+        --love.graphics.rectangle("fill", 0,0, love.graphics.getWidth(),love.graphics.getHeight())
 		SetColor(255,255,255)
+		love.graphics.draw(GridCanvas, -Camera.x,-Camera.y)
 		love.graphics.rectangle("line", 0-Camera.x,0-Camera.y, WorldSize,WorldSize)
 		for i=1, #ThingList do
 			SetColor(255,255,255)

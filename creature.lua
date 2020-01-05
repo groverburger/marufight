@@ -24,7 +24,7 @@ function NewCreature(xg,yg, braing,lineage,generation, radius,noselength, mutati
 	c.lastChild = nil
 	c.murdered = false
 	c.iFrames = 60
-	c.visionRange = 128*1.5
+	c.visionRange = 128*2
 
 	c.lastFoodDist = c.visionRange
 	c.lastFamilyDist = c.visionRange
@@ -66,7 +66,7 @@ function NewCreature(xg,yg, braing,lineage,generation, radius,noselength, mutati
 		end
 
 		self.mapTimer = self.mapTimer + 1
-		if self.mapTimer > 30 then
+		if self.mapTimer > 30 and SelectedThing == self then
 			self.lastMapDist = math.dist(self.x,self.y, self.map[#self.map][1],self.map[#self.map][2])
 			self.map[#self.map+1] = {self.x, self.y}
 			self.mapTimer = 0
@@ -108,9 +108,10 @@ function NewCreature(xg,yg, braing,lineage,generation, radius,noselength, mutati
 		local directionDelta = self.brainOut[1]
 		directionDelta = math.max(math.min(directionDelta, maxTurnSpeed), -1*maxTurnSpeed)
 
+		--[[
 		if self.shieldingCooldown <= 0 then
 			if self.brainOut[4] > 0.5 then
-				self.shielding = false
+				self.shielding = true
 				self.shieldingCooldown = 20
 			else
 				self.shielding = false
@@ -119,6 +120,7 @@ function NewCreature(xg,yg, braing,lineage,generation, radius,noselength, mutati
 		else
 			self.shieldingCooldown = self.shieldingCooldown-1
 		end
+		]]
 
 		if self.shielding then
 			directionDelta = 0 --directionDelta/5
@@ -156,11 +158,12 @@ function NewCreature(xg,yg, braing,lineage,generation, radius,noselength, mutati
 		local foodSourceDist = self.visionRange
 		local deadFoodDist = self.visionRange
 		local deadFoodDirection = self.direction
-		local thingDist = self.visionRange*3
+		local thingDist = self.visionRange
 		local thingDirection = self.direction
 		local thingPointDirection = self.direction
 		local familyDist = self.visionRange*3
 		local familyDirection = self.direction
+        local thingShielding = 0
 		local thingCount = 0
 		local thingNoseOut = 0
 
@@ -170,9 +173,13 @@ function NewCreature(xg,yg, braing,lineage,generation, radius,noselength, mutati
 			if cx <= 0 or cy <= 0 or cx > #ThingOctree or cy > #ThingOctree then return end
 			local myOctree = ThingOctree[cx][cy]
 			if myOctree == nil then return end
+
+            -- look through all the things in this sector of the octree
 			for i=1, #myOctree do
 				local thing = myOctree[i]
 				local dist = math.dist(thing.x,thing.y, self.x,self.y)
+
+                -- if it is food, update my variables accordingly
 				if thing.name == "food" then
 					local food = thing
 
@@ -201,24 +208,38 @@ function NewCreature(xg,yg, braing,lineage,generation, radius,noselength, mutati
 					end
 				end
 
+                -- if thing is another creature, update variables accordingly and manage collisions
 				if thing.name == "creature" and thing ~= self then
 					local isFamily = self.lineage.firstName == thing.lineage.firstName or self.lineage.middleName == thing.lineage.middleName
 					local collisionAngle = math.angle(self.x+self.xSpeed,self.y+self.ySpeed, thing.x,thing.y)
 					local isPoked = math.dist(self.x+math.cos(self.direction)*(self.radius+self.noseLength)*self.noseOut, self.y+math.sin(self.direction)*(self.radius+self.noseLength)*self.noseOut, thing.x,thing.y) <= thing.radius
 
+                    -- if is the current closest thing to me
 					if dist < thingDist and not isFamily then
 						thingCount = thingCount + 1
 						thingDist = dist
 						thingDirection = math.angle(self.x,self.y, thing.x,thing.y)
 						thingPointDirection = thing.direction
 						thingNoseOut = thing.noseOut
+                        if thing.shielding then
+                            thingShielding = 1
+                        else
+                            thingShielding = 0
+                        end
 					end
+
+                    -- closest family to me
 					if dist < familyDist and isFamily then
 						familyDist = dist
 						familyDirection = math.angle(self.x,self.y, thing.x,thing.y)
 					end
 
-					if isPoked and self.noseOut > 0 and not thing.shielding and not self.shielding and not isFamily then
+                    -- kill other creatures
+					if isPoked 
+                    and self.noseOut > 0 
+                    and not thing.shielding 
+                    and not self.shielding 
+                    and not isFamily then
 						local winner = self
 						local loser = thing
 						local can = true
@@ -229,6 +250,8 @@ function NewCreature(xg,yg, braing,lineage,generation, radius,noselength, mutati
 							DeathSpawns = DeathSpawns + 1
 						end
 					end
+
+                    -- bump other creatures
 					if dist <= self.radius+thing.radius then
 						local bumpSpeed = 6*1.6/8
 						self.xSpeed = math.cos(collisionAngle)*-bumpSpeed
@@ -256,7 +279,7 @@ function NewCreature(xg,yg, braing,lineage,generation, radius,noselength, mutati
 
 		self.brainOut = self.brain:cycle({
 			{foodDistDelta},
-			{foodSourceDist},
+			{thingShielding},
 			{thingDirectionDiff},--{thingDist - self.lastThingDist},
 			{thingDistDelta},
 		})
@@ -334,7 +357,7 @@ function NewCreature(xg,yg, braing,lineage,generation, radius,noselength, mutati
 			love.graphics.print("radius: "..math.floor(self.radius).." noseLength: "..math.floor(self.noseLength),8,250+64)
 			love.graphics.print("mutations: "..math.floor(self.mutations),8,250+64+16)
 
-			-- love.graphics.circle("line", dx,dy, self.visionRange,64)
+			love.graphics.circle("line", dx,dy, self.visionRange,64)
 			local drawMap = {}
 			for i=1, #self.map do
 				drawMap[#drawMap+1] = self.map[i][1] -Camera.x
