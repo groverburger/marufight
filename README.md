@@ -9,9 +9,9 @@ An evolution simulation designed to create a diverse and dynamic ecosystem with 
 
 # How does it work?
 
-- A maru creates a clone of itself if it touches a yellow food pellet.
+- A maru (circular creature) creates a clone of itself if it touches a yellow food pellet.
 - A maru creates a clone of itself if it pokes a maru with its nose, popping it.
-- A maru dies after 60 seconds.
+- A maru dies of old age after 60 seconds.
 - Each time a maru is born as a clone, it has a chance of mutating from its parent's "DNA".
 
 
@@ -31,6 +31,8 @@ When the population of the world dips below a certain threshold, randomly genera
 When a maru is created through seeding, it is assigned a random color, family name, brain, and size. A maru created through seeding is also generation zero of its lineage.
 
 The neurons in a maru's brain all use sigmoid activation functions.
+
+A maru's nose "retracts" when it rotates too quickly, rendering it unable to pop other marus. This is to prevent spinning constantly as a viable predatory strategy.
 
 
 
