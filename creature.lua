@@ -14,11 +14,11 @@ local Creature = {}
 Creature.__index = Creature
 
 local createThing
-local newMurderAnim
+local emitMurderParticles
 
 function Creature.setWorldHooks(hooks)
     createThing = hooks.createThing
-    newMurderAnim = hooks.newMurderAnim
+    emitMurderParticles = hooks.emitMurderParticles
 end
 
 function Creature.new(xg, yg, brain, lineage, generation, radius, noseLength, mutations)
@@ -31,7 +31,6 @@ function Creature.new(xg, yg, brain, lineage, generation, radius, noseLength, mu
         xSpeed = 0,
         ySpeed = 0,
         direction = love.math.random() * 2 * math.pi,
-        speed = 0,
         radius = radius,
         noseLength = noseLength,
         mutations = mutations,
@@ -112,9 +111,7 @@ function Creature:update(dt)
 
     if self.murdered then
         if Visual then
-            for i = 1, 16 do
-                createThing(newMurderAnim(self.x, self.y, {self.lineage.hue, self.lineage.sat}))
-            end
+            emitMurderParticles(self.x, self.y, self.lineage.hue, self.lineage.sat)
         end
 
         return false
@@ -132,8 +129,6 @@ function Creature:update(dt)
     self.ySpeed = self.ySpeed * friction
 
     local maxTurnSpeed = 0.2
-
-    self.speed = self.speed + self.brainOut[2]
 
     local directionDelta = self.brainOut[1]
     directionDelta = math.max(math.min(directionDelta, maxTurnSpeed), -1 * maxTurnSpeed)
@@ -153,9 +148,9 @@ function Creature:update(dt)
     self.direction = self.direction + directionDelta
     self.direction = self.direction % (math.pi * 2)
 
-    self.speed = math.max(math.min(self.speed, 1), -1)
-    self.xSpeed = self.xSpeed + math.cos(self.direction) * self.speed * 0.05
-    self.ySpeed = self.ySpeed + math.sin(self.direction) * self.speed * 0.05
+    local thrust = self.brainOut[2] * 0.05
+    self.xSpeed = self.xSpeed + math.cos(self.direction) * thrust
+    self.ySpeed = self.ySpeed + math.sin(self.direction) * thrust
 
     if self.x + self.xSpeed < 0 or self.x + self.xSpeed > WorldSize then
         self.xSpeed = self.xSpeed * -1
@@ -301,18 +296,9 @@ function Creature:update(dt)
     self.lastFoodDist = foodDist
     self.lastDeadFoodDist = deadFoodDist
 
-    if love.mouse.isDown(1) then
-        local mouseX = love.mouse.getX() / Camera.scale + Camera.x
-        local mouseY = love.mouse.getY() / Camera.scale + Camera.y
-        local mouseDist = dist(mouseX, mouseY, self.x, self.y)
-        if mouseDist < self.radius * 1.5 then
-            SelectedThing = self
-        end
-    end
-
     if SelectedThing == self and Follow then
-        Camera.x = self.x - love.graphics.getWidth() / 2
-        Camera.y = self.y - love.graphics.getHeight() / 2
+        Camera.x = self.x - love.graphics.getWidth() / (2 * Camera.scale)
+        Camera.y = self.y - love.graphics.getHeight() / (2 * Camera.scale)
     end
 
     local ret = self.lifeTimer < self.lifeTimerMax

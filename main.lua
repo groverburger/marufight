@@ -6,16 +6,18 @@ local hsv = Util.hsv
 local rand = Util.rand
 local round = Util.round
 local setColor = Util.setColor
+local dist = Util.dist
 
 local Food = {}
 Food.__index = Food
 
-local MurderAnim = {}
-MurderAnim.__index = MurderAnim
-
 local function createThing(thing)
     table.insert(ThingList, thing)
     return thing
+end
+
+local function screenToWorld(x, y)
+    return x / Camera.scale + Camera.x, y / Camera.scale + Camera.y
 end
 
 function love.load()
@@ -33,6 +35,7 @@ function Reset()
     WorldCanvas = love.graphics.newCanvas(WorldSize, WorldSize)
     ThingList = {}
     ThingOctree = {}
+    MurderParticles = {}
     OctreeSize = 32
     for i = 1, OctreeSize do
         ThingOctree[i] = {}
@@ -55,6 +58,13 @@ function Reset()
     DeathSpawns = 0
     Year = 1
     YearTimer = 0
+
+    MurderParticleCanvas = love.graphics.newCanvas(4, 4)
+    love.graphics.setCanvas(MurderParticleCanvas)
+    love.graphics.clear(0, 0, 0, 0)
+    setColor(255, 255, 255)
+    love.graphics.circle("fill", 2, 2, 2, 8)
+    love.graphics.setCanvas()
 
     local saltx = love.math.random() * 10000 * choose({1, -1})
     local salty = love.math.random() * 10000 * choose({1, -1})
@@ -101,13 +111,13 @@ function Reset()
     local octreeGrid = WorldSize / OctreeSize
     for i = 1, OctreeSize do
         for j = 1, OctreeSize do
-                love.graphics.rectangle(
-                    "line",
-                    (i - 1) * octreeGrid,
-                    (j - 1) * octreeGrid,
-                    octreeGrid,
-                    octreeGrid
-                )
+            love.graphics.rectangle(
+                "line",
+                (i - 1) * octreeGrid,
+                (j - 1) * octreeGrid,
+                octreeGrid,
+                octreeGrid
+            )
         end
     end
     love.graphics.setCanvas()
@@ -154,47 +164,30 @@ function Food:draw()
     --end
 end
 
-function MurderAnim.new(xg, yg, color)
-    return setmetatable({
-        x = xg,
-        y = yg,
-        direction = love.math.random() * 2 * math.pi,
-        timer = 0,
-        color = color,
-        speed = love.math.random() * 1.5 + 0.5,
-    }, MurderAnim)
-end
-
-function MurderAnim:update(dt)
-    self.x = self.x + math.cos(self.direction) * self.speed
-    self.y = self.y + math.sin(self.direction) * self.speed
-    self.timer = self.timer + 1
-
-    return self.timer < 40
-end
-
-function MurderAnim:draw()
-    local r, g, b = hsv(self.color[1], self.color[2], 255)
-    setColor(r, g, b)
-    local length = 10
-    love.graphics.line(
-        self.x,
-        self.y,
-        self.x + math.cos(self.direction) * length,
-        self.y + math.sin(self.direction) * length
-    )
-    setColor(255, 255, 255)
+local function emitMurderParticles(x, y, hue, sat)
+    local particles = love.graphics.newParticleSystem(MurderParticleCanvas, 64)
+    local r, g, b = hsv(hue, sat, 255)
+    particles:setPosition(x, y)
+    particles:setParticleLifetime(0.25, 0.7)
+    particles:setSpeed(30, 120)
+    particles:setLinearDamping(1.5, 4)
+    particles:setSpread(math.pi * 2)
+    particles:setDirection(0)
+    particles:setSizes(1.4, 0.4)
+    particles:setColors(r / 255, g / 255, b / 255, 1, r / 255, g / 255, b / 255, 0)
+    particles:emit(32)
+    MurderParticles[#MurderParticles + 1] = particles
 end
 
 Creature.setWorldHooks({
     createThing = createThing,
-    newMurderAnim = MurderAnim.new,
+    emitMurderParticles = emitMurderParticles,
 })
 
 function love.update(dt)
-    if love.mouse.isDown(2) then
-        Camera.x = -1 * (love.mouse.getX() - StartDragX) + StartCameraX
-        Camera.y = -1 * (love.mouse.getY() - StartDragY) + StartCameraY
+    if love.mouse.isDown(2) or love.mouse.isDown(3) then
+        Camera.x = StartCameraX - (love.mouse.getX() - StartDragX) / Camera.scale
+        Camera.y = StartCameraY - (love.mouse.getY() - StartDragY) / Camera.scale
     end
 
     local camSpeed = 150 * dt
@@ -262,6 +255,17 @@ function love.update(dt)
     end
     ThingOctree = nextOctree
 
+    local i = 1
+    while i <= #MurderParticles do
+        local particles = MurderParticles[i]
+        particles:update(dt)
+        if particles:getCount() == 0 then
+            table.remove(MurderParticles, i)
+        else
+            i = i + 1
+        end
+    end
+
     if creatureCount < CreatureCount and RandomSpawns then
         createThing(Creature.new(love.math.random() * WorldSize, love.math.random() * WorldSize))
     end
@@ -285,6 +289,9 @@ function love.draw()
         for i = 1, #ThingList do
             setColor(255, 255, 255)
             ThingList[i]:draw()
+        end
+        for i = 1, #MurderParticles do
+            love.graphics.draw(MurderParticles[i])
         end
         setColor(255, 255, 255)
 
@@ -331,10 +338,40 @@ function love.keypressed(k)
 end
 
 function love.mousepressed(x, y, b)
-    if b == 2 then
+    if b == 1 then
+        local worldX, worldY = screenToWorld(x, y)
+        local selected = nil
+        for i = #ThingList, 1, -1 do
+            local thing = ThingList[i]
+            if thing.name == "creature" and dist(worldX, worldY, thing.x, thing.y) < thing.radius * 1.5 then
+                selected = thing
+                break
+            end
+        end
+        SelectedThing = selected
+        if selected == nil then
+            Follow = false
+        end
+    end
+
+    if b == 2 or b == 3 then
         StartDragX = x
         StartDragY = y
         StartCameraX = Camera.x
         StartCameraY = Camera.y
     end
+end
+
+function love.wheelmoved(dx, dy)
+    if dy == 0 then
+        return
+    end
+
+    local mouseX = love.mouse.getX()
+    local mouseY = love.mouse.getY()
+    local beforeX, beforeY = screenToWorld(mouseX, mouseY)
+    local zoomStep = 1.15 ^ dy
+    Camera.scale = math.max(0.2, math.min(Camera.scale * zoomStep, 8))
+    Camera.x = beforeX - mouseX / Camera.scale
+    Camera.y = beforeY - mouseY / Camera.scale
 end
